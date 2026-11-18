@@ -74,19 +74,56 @@ function el(tag, props = {}, ...kids) {
 }
 const abbr = (p) => ABBR[p] || p;
 
-function tts(text) {
+let currentManageAudio = null;
+let ttsSettings = { lang: "en-US", rate: 0.85 };
+
+function stopManageAudio() {
+  if (currentManageAudio) {
+    try { currentManageAudio.pause(); currentManageAudio.currentTime = 0; } catch (e) {}
+    currentManageAudio = null;
+  }
+  try { speechSynthesis.cancel(); } catch (e) {}
+}
+
+function fallbackManageSpeech(text, lang = "en-US", rate = 0.85) {
   if (!text) return;
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = "en-US";
-  u.rate = 0.95;
-  speechSynthesis.cancel();
-  speechSynthesis.speak(u);
+  try {
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = lang;
+    u.rate = rate;
+    const voices = speechSynthesis.getVoices() || [];
+    const targetName = lang === "en-GB" ? "Google UK English" : "Google US English";
+    const googleVoice =
+      voices.find((v) => v.name.includes(targetName)) ||
+      voices.find((v) => v.name.includes("Google") && v.lang.startsWith("en")) ||
+      voices.find((v) => v.lang === lang);
+    if (googleVoice) u.voice = googleVoice;
+    speechSynthesis.cancel();
+    speechSynthesis.speak(u);
+  } catch (e) {}
+}
+
+async function tts(text) {
+  if (!text) return;
+  stopManageAudio();
+  const lang = ttsSettings.lang || "en-US";
+  const rate = Number(ttsSettings.rate) || 0.85;
+  try {
+    const res = await chrome.runtime.sendMessage({ type: "FETCH_TTS", text, lang });
+    if (res?.ok && res.dataUrl) {
+      const audio = new Audio(res.dataUrl);
+      audio.playbackRate = rate;
+      currentManageAudio = audio;
+      audio.play().catch(() => fallbackManageSpeech(text, lang, rate));
+      return;
+    }
+  } catch (e) {}
+  fallbackManageSpeech(text, lang, rate);
 }
 
 function speak(word) {
-  const a = words[word]?.audio;
-  if (a) new Audio(a).play().catch(() => tts(word));
-  else tts(word);
+  if (!word) return;
+  tts(word);
 }
 
 function highlightKeyword(ctx, word) {
@@ -515,17 +552,20 @@ $("#closeEditModal").onclick = closeEditModal;
 $("#cancelEditModal").onclick = closeEditModal;
 $("#saveEditModal").onclick = saveEditedExample;
 
-// ===== Modal Cài đặt AI & Word Encounter =====
+// ===== Modal Cài đặt AI, Giọng đọc Google & Word Encounter =====
 $("#btnSettings").onclick = async () => {
-  const { geminiApiKey = "", encounterSettings = {} } = await chrome.storage.local.get([
+  const { geminiApiKey = "", encounterSettings = {}, ttsSettings: savedTts = {} } = await chrome.storage.local.get([
     "geminiApiKey",
-    "encounterSettings"
+    "encounterSettings",
+    "ttsSettings"
   ]);
   $("#geminiKeyInput").value = geminiApiKey;
   $("#encounterEnabledCheck").checked = encounterSettings.enabled !== false;
   $("#encounterModeSelect").value = encounterSettings.mode || "normal";
   $("#maxPerPageInput").value = encounterSettings.maxPerPage || 15;
   $("#highlightStyleSelect").value = encounterSettings.highlightStyle || "subtle";
+  $("#ttsLangSelect").value = savedTts.lang || "en-US";
+  $("#ttsRateSelect").value = String(savedTts.rate || 0.85);
   $("#settingsModal").hidden = false;
 };
 $("#closeSettingsModal").onclick = () => { $("#settingsModal").hidden = true; };
@@ -539,7 +579,12 @@ $("#saveSettingsModal").onclick = async () => {
     maxPerPage,
     highlightStyle: $("#highlightStyleSelect").value
   };
-  await chrome.storage.local.set({ geminiApiKey: key, encounterSettings });
+  const newTtsSettings = {
+    lang: $("#ttsLangSelect").value || "en-US",
+    rate: parseFloat($("#ttsRateSelect").value) || 0.85
+  };
+  ttsSettings = newTtsSettings;
+  await chrome.storage.local.set({ geminiApiKey: key, encounterSettings, ttsSettings: newTtsSettings });
   $("#settingsModal").hidden = true;
   alert("Đã lưu cài đặt thành công!");
 };
@@ -595,7 +640,8 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 // Khởi chạy
-chrome.storage.local.get("words").then(({ words: w = {} }) => {
+chrome.storage.local.get(["words", "ttsSettings"]).then(({ words: w = {}, ttsSettings: savedTts }) => {
   words = w;
+  if (savedTts) ttsSettings = Object.assign(ttsSettings, savedTts);
   renderList();
 });

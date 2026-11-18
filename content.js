@@ -510,13 +510,50 @@
     }
   }
 
+  let currentContentAudio = null;
+  let ttsSettings = { lang: "en-US", rate: 0.85 };
+
+  function fallbackContentSpeech(text, lang = "en-US", rate = 0.85) {
+    try {
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = lang;
+      u.rate = rate;
+      const voices = window.speechSynthesis.getVoices() || [];
+      const targetName = lang === "en-GB" ? "Google UK English" : "Google US English";
+      const googleVoice =
+        voices.find((v) => v.name.includes(targetName)) ||
+        voices.find((v) => v.name.includes("Google") && v.lang.startsWith("en")) ||
+        voices.find((v) => v.lang === lang);
+      if (googleVoice) u.voice = googleVoice;
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(u);
+    } catch (e) {}
+  }
+
   function playTts(text) {
     if (!text) return;
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = "en-US";
-    u.rate = 0.95;
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(u);
+    if (currentContentAudio) {
+      try { currentContentAudio.pause(); currentContentAudio.currentTime = 0; } catch (e) {}
+      currentContentAudio = null;
+    }
+    try { window.speechSynthesis.cancel(); } catch (e) {}
+
+    const lang = ttsSettings.lang || "en-US";
+    const rate = Number(ttsSettings.rate) || 0.85;
+    try {
+      chrome.runtime.sendMessage({ type: "FETCH_TTS", text, lang }, (res) => {
+        if (chrome.runtime.lastError || !res?.ok || !res.dataUrl) {
+          fallbackContentSpeech(text, lang, rate);
+          return;
+        }
+        const audio = new Audio(res.dataUrl);
+        audio.playbackRate = rate;
+        currentContentAudio = audio;
+        audio.play().catch(() => fallbackContentSpeech(text, lang, rate));
+      });
+    } catch (e) {
+      fallbackContentSpeech(text, lang, rate);
+    }
   }
 
   function positionPopup(targetEl) {
@@ -735,11 +772,13 @@
   // ==========================================
   async function loadAndInitialize() {
     try {
-      const { words = {}, encounterSettings: st = {} } = await chrome.storage.local.get([
+      const { words = {}, encounterSettings: st = {}, ttsSettings: ttsSt } = await chrome.storage.local.get([
         "words",
-        "encounterSettings"
+        "encounterSettings",
+        "ttsSettings"
       ]);
       encounterSettings = Object.assign(encounterSettings, st);
+      if (ttsSt) ttsSettings = Object.assign(ttsSettings, ttsSt);
       savedWordsMap.clear();
 
       for (const [k, v] of Object.entries(words)) {
@@ -770,6 +809,9 @@
       compileRegex();
       highlightedCount = 0;
       scanAndHighlightRoot(document.body);
+    }
+    if (changes.ttsSettings) {
+      ttsSettings = Object.assign(ttsSettings, changes.ttsSettings.newValue || {});
     }
     if (changes.encounterSettings) {
       encounterSettings = Object.assign(encounterSettings, changes.encounterSettings.newValue || {});

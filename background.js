@@ -509,7 +509,43 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     })();
     return true;
   }
+  if (msg.type === "FETCH_TTS") {
+    (async () => {
+      try {
+        const text = (msg.text || "").trim().slice(0, 195);
+        const lang = msg.lang || "en-US";
+        if (!text) return sendResponse({ ok: false });
+        const cacheKey = `${lang}|${text.toLowerCase()}`;
+        if (ttsCache.has(cacheKey)) {
+          return sendResponse({ ok: true, dataUrl: ttsCache.get(cacheKey) });
+        }
+        const url =
+          "https://translate.googleapis.com/translate_tts?ie=UTF-8&client=gtx&tl=" +
+          encodeURIComponent(lang) +
+          "&q=" +
+          encodeURIComponent(text);
+        const r = await fetch(url, { signal: AbortSignal.timeout(4500) });
+        if (!r.ok) return sendResponse({ ok: false });
+        const buf = await r.arrayBuffer();
+        const bytes = new Uint8Array(buf);
+        let bin = "";
+        for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+        const dataUrl = "data:audio/mpeg;base64," + btoa(bin);
+        if (ttsCache.size >= 80) {
+          const firstKey = ttsCache.keys().next().value;
+          ttsCache.delete(firstKey);
+        }
+        ttsCache.set(cacheKey, dataUrl);
+        sendResponse({ ok: true, dataUrl });
+      } catch (e) {
+        sendResponse({ ok: false });
+      }
+    })();
+    return true;
+  }
 });
+
+const ttsCache = new Map();
 
 function computeMastery(w) {
   const correct = w.correctCount || 0;

@@ -710,6 +710,8 @@ main {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  max-height: 74vh;
+  overflow-y: auto;
 }
 .modal-label {
   font-size: 12px;

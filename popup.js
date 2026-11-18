@@ -15,25 +15,58 @@ let currentKey = null;
 let currentWordObj = null;
 let autoClose = false;
 let closeTimer = null;
+let isHovering = false;
 let allWordsCache = {};
+let currentAudio = null;
+let ttsSettings = { lang: "en-US", rate: 0.85 };
 
-function tts(text) {
+function stopAudio() {
+  if (currentAudio) {
+    try { currentAudio.pause(); currentAudio.currentTime = 0; } catch (e) {}
+    currentAudio = null;
+  }
+  try { speechSynthesis.cancel(); } catch (e) {}
+}
+
+function fallbackSpeech(text, lang = "en-US", rate = 0.85) {
   if (!text) return;
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = "en-US";
-  u.rate = 0.95;
-  speechSynthesis.cancel();
-  speechSynthesis.speak(u);
+  try {
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = lang;
+    u.rate = rate;
+    const voices = speechSynthesis.getVoices() || [];
+    const targetName = lang === "en-GB" ? "Google UK English" : "Google US English";
+    const googleVoice =
+      voices.find((v) => v.name.includes(targetName)) ||
+      voices.find((v) => v.name.includes("Google") && v.lang.startsWith("en")) ||
+      voices.find((v) => v.lang === lang);
+    if (googleVoice) u.voice = googleVoice;
+    speechSynthesis.cancel();
+    speechSynthesis.speak(u);
+  } catch (e) {}
+}
+
+async function tts(text) {
+  if (!text) return;
+  stopAudio();
+  const lang = ttsSettings.lang || "en-US";
+  const rate = Number(ttsSettings.rate) || 0.85;
+  try {
+    const res = await chrome.runtime.sendMessage({ type: "FETCH_TTS", text, lang });
+    if (res?.ok && res.dataUrl) {
+      const audio = new Audio(res.dataUrl);
+      audio.playbackRate = rate;
+      currentAudio = audio;
+      audio.play().catch(() => fallbackSpeech(text, lang, rate));
+      return;
+    }
+  } catch (e) {}
+  fallbackSpeech(text, lang, rate);
 }
 
 function speakWordAudio(wObj) {
   if (!wObj) return;
-  if (wObj.audio) {
-    const audio = new Audio(wObj.audio);
-    audio.play().catch(() => tts(wObj.word));
-  } else {
-    tts(wObj.word);
-  }
+  tts(wObj.word);
 }
 
 function highlightKeyword(sentence, word) {
@@ -61,13 +94,32 @@ function highlightKeyword(sentence, word) {
   return container;
 }
 
+function cancelAutoClose() {
+  clearTimeout(closeTimer);
+  closeTimer = null;
+  const bar = $("#bar");
+  if (bar) bar.classList.remove("run", "paused");
+}
+
 function armAutoClose(durationMs = 4000) {
   if (!autoClose) return;
+  // Chỉ bắt đầu đếm ngược khi đã dịch xong (done hoặc error), tuyệt đối không đếm khi đang pending
+  const st = currentWordObj?.status;
+  if (st !== "done" && st !== "error") {
+    cancelAutoClose();
+    return;
+  }
   clearTimeout(closeTimer);
+  closeTimer = null;
   const bar = $("#bar");
   bar.classList.remove("run", "paused");
   void bar.offsetWidth; // reset animation
+  bar.style.animationDuration = `${durationMs}ms`;
   bar.classList.add("run");
+  if (isHovering) {
+    bar.classList.add("paused");
+    return;
+  }
   closeTimer = setTimeout(() => {
     chrome.storage.local.remove("lastSaved");
     window.close();
@@ -76,18 +128,18 @@ function armAutoClose(durationMs = 4000) {
 
 // Tạm dừng đếm ngược khi di chuột vào popup
 document.body.addEventListener("mouseenter", () => {
+  isHovering = true;
   if (closeTimer) {
     clearTimeout(closeTimer);
+    closeTimer = null;
     $("#bar").classList.add("paused");
   }
 });
 document.body.addEventListener("mouseleave", () => {
-  if (autoClose && currentWordObj?.status === "done") {
-    $("#bar").classList.remove("paused");
-    closeTimer = setTimeout(() => {
-      chrome.storage.local.remove("lastSaved");
-      window.close();
-    }, 2500);
+  isHovering = false;
+  const st = currentWordObj?.status;
+  if (autoClose && (st === "done" || st === "error")) {
+    armAutoClose(2500);
   }
 });
 
@@ -95,7 +147,7 @@ document.body.addEventListener("mouseleave", () => {
 function showSearchView(words = allWordsCache) {
   $("#searchView").hidden = false;
   $("#wordView").hidden = true;
-  $("#bar").classList.remove("run");
+  cancelAutoClose();
   autoClose = false;
   currentKey = null;
   currentWordObj = null;
@@ -185,7 +237,12 @@ function renderWord(w) {
     $("#m").textContent = "Chưa dịch được từ này.";
     $("#m").className = "meaning-box wait";
     exCard.hidden = true;
+    if (autoClose) {
+      armAutoClose(4000);
+    }
   } else {
+    // Đang dịch (pending): hủy hoàn toàn đếm ngược, chỉ chạy sau khi dịch xong
+    cancelAutoClose();
     statusPill.hidden = false;
     statusPill.textContent = "⏳ Đang tra...";
     $("#m").textContent = "Đang tra nghĩa và tạo câu ví dụ…";
@@ -199,7 +256,7 @@ async function lookupWord(text) {
   const clean = (text || "").trim();
   if (!clean) return;
   autoClose = false; // Tra thủ công thì không tự tắt
-  $("#bar").classList.remove("run");
+  cancelAutoClose();
 
   currentKey = clean.toLowerCase();
   renderWord({ word: clean, status: "pending" });
@@ -316,19 +373,19 @@ chrome.storage.onChanged.addListener((changes, area) => {
 
 // Khởi chạy khi mở popup
 (async () => {
-  const { lastSaved, words = {} } = await chrome.storage.local.get(["lastSaved", "words"]);
+  const { lastSaved, words = {}, ttsSettings: savedTts } = await chrome.storage.local.get(["lastSaved", "words", "ttsSettings"]);
   allWordsCache = words;
+  if (savedTts) ttsSettings = Object.assign(ttsSettings, savedTts);
 
   const now = Date.now();
   // Chỉ hiển thị từ vừa lưu nếu hành động lưu diễn ra trong vòng 4.5 giây trước
   const isJustSaved = lastSaved && (now - (lastSaved.at || 0) < 4500) && words[lastSaved.key];
 
   if (isJustSaved) {
-    // Trường hợp 1: Vừa bôi đen lưu xong -> hiện từ đó trong 4 giây rồi tự đóng
+    // Trường hợp 1: Vừa bôi đen lưu xong -> chỉ đếm ngược 4 giây SAU KHI dịch xong
     currentKey = lastSaved.key;
     autoClose = true;
     renderWord(words[currentKey]);
-    armAutoClose(4000);
     // Xóa luôn lastSaved để lần sau bấm vào icon tiện ích sẽ chỉ hiện tra cứu
     chrome.storage.local.remove("lastSaved");
   } else {
