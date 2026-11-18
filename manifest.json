@@ -1,0 +1,57 @@
+{
+  "manifest_version": 3,
+  "name": "englishmdai",
+  "version": "1.1.0",
+  "description": "Lưu từ vựng, tự dịch nghĩa, tự tạo câu ví dụ minh họa và ôn tập thông minh.",
+  "permissions": [
+    "storage",
+    "contextMenus",
+    "clipboardRead"
+  ],
+  "host_permissions": [
+    "https://translate.googleapis.com/*",
+    "https://api.dictionaryapi.dev/*",
+    "https://tatoeba.org/*",
+    "https://generativelanguage.googleapis.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "all_frames": true,
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "englishmdai",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "options_page": "manage.html",
+  "commands": {
+    "save-selection": {
+      "suggested_key": {
+        "default": "Alt+S"
+      },
+      "description": "Lưu từ đang bôi đen"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

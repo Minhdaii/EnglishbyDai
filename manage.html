@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>englishmdai - Sổ từ vựng thông minh</title>
+  <link rel="icon" href="icons/icon32.png">
+  <link rel="stylesheet" href="manage.css">
+</head>
+<body>
+  <div class="top-line"></div>
+
+  <header class="top">
+    <div class="brand">
+      <img src="icons/icon128.png" alt="Logo" class="brand-logo">
+      <div>
+        <div class="name">englishmdai</div>
+        <div class="sub">sổ từ vựng thông minh</div>
+      </div>
+    </div>
+
+    <div class="seg">
+      <button data-tab="list" class="on">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+        Từ đã lưu
+      </button>
+      <button data-tab="cards">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="M7 15h0"></path><path d="M2 9.5h20"></path></svg>
+        Ôn thẻ Flashcard
+      </button>
+    </div>
+
+    <div class="top-actions">
+      <button id="btnSettings" class="btn" title="Cài đặt">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+        Cài đặt
+      </button>
+      <button id="export" class="btn" title="Xuất toàn bộ từ vựng ra file CSV">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+        Xuất CSV
+      </button>
+    </div>
+  </header>
+
+  <main>
+    <!-- TAB 1: DANH SÁCH TỪ VỰNG -->
+    <section id="list">
+      <!-- Khung thêm từ mới hoặc dán từ trực tiếp -->
+      <div class="add-bar">
+        <div class="add-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          Thêm từ vựng mới
+        </div>
+        <div class="add-form">
+          <div class="input-with-icon">
+            <svg class="field-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+            <input id="addInput" type="text" placeholder="Nhập hoặc dán từ tiếng Anh (ví dụ: name, apple, learn)..." autocomplete="off" spellcheck="false">
+          </div>
+          <button id="btnPasteManage" type="button" class="btn" title="Dán từ từ clipboard">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
+            Dán từ
+          </button>
+          <button id="btnAddWord" type="button" class="btn primary">Thêm vào sổ</button>
+        </div>
+      </div>
+
+      <!-- Thanh công cụ tìm kiếm và lọc -->
+      <div class="toolbar">
+        <div class="search-wrap">
+          <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <input id="q" type="search" placeholder="Tìm kiếm từ, nghĩa hoặc câu ví dụ…">
+        </div>
+        <div class="filter-group">
+          <select id="filterSelect" class="select-box">
+            <option value="all">Tất cả từ</option>
+            <option value="mastery_mastered">Thành thạo</option>
+            <option value="mastery_familiar">Quen thuộc</option>
+            <option value="mastery_learning">Đang học</option>
+            <option value="mastery_new">Mới lưu</option>
+            <option value="has_example">Có câu ví dụ</option>
+            <option value="no_example">Chưa có ví dụ</option>
+          </select>
+          <select id="sortSelect" class="select-box">
+            <option value="newest">Mới nhất</option>
+            <option value="oldest">Cũ nhất</option>
+            <option value="az">A → Z</option>
+            <option value="encounters">Gặp lại nhiều nhất</option>
+            <option value="needs_review">Cần ôn tập</option>
+          </select>
+        </div>
+        <div id="stats" class="stats"></div>
+      </div>
+
+      <!-- Lưới danh sách thẻ từ -->
+      <div id="items" class="grid"></div>
+    </section>
+
+    <!-- TAB 2: FLASHCARD ÔN TẬP -->
+    <section id="cards" hidden>
+      <div id="deckInfo" class="deckinfo"></div>
+      <div id="card" class="flash" tabindex="0"></div>
+      <div class="controls">
+        <button id="prev" class="btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+          Trước
+        </button>
+        <button id="flip" class="btn primary">Lật thẻ (Space)</button>
+        <button id="next" class="btn">
+          Sau
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        </button>
+        <button id="shuffle" class="btn" title="Xáo trộn thứ tự các thẻ">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line><line x1="4" y1="4" x2="9" y2="9"></line></svg>
+          Xáo trộn
+        </button>
+      </div>
+      <div class="hint">Phím tắt: Space để lật thẻ · Phím mũi tên ← → để chuyển thẻ</div>
+    </section>
+  </main>
+
+  <!-- MODAL CHỈNH SỬA CÂU VÍ DỤ -->
+  <div id="editModal" class="modal-backdrop" hidden>
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="editModalTitle">Chỉnh sửa câu ví dụ</h3>
+        <button id="closeEditModal" class="btn-close" title="Đóng">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <label class="modal-label">Câu ví dụ tiếng Anh:</label>
+        <textarea id="editModalEn" rows="3" class="modal-input" placeholder="Nhập câu ví dụ tiếng Anh..."></textarea>
+        
+        <label class="modal-label">Bản dịch tiếng Việt:</label>
+        <textarea id="editModalVi" rows="2" class="modal-input" placeholder="Nhập bản dịch tiếng Việt... (hoặc để trống để tự động dịch)"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button id="cancelEditModal" class="btn">Hủy</button>
+        <button id="saveEditModal" class="btn primary">Lưu câu ví dụ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL CÀI ĐẶT AI & WORD ENCOUNTER -->
+  <div id="settingsModal" class="modal-backdrop" hidden>
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Cài đặt englishmdai</h3>
+        <button id="closeSettingsModal" class="btn-close" title="Đóng">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <!-- Mục 1: Word Encounter (Gặp lại từ đã lưu) -->
+        <div class="settings-section">
+          <div class="settings-sec-title">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+            GẶP LẠI TỪ ĐÃ LƯU (WORD ENCOUNTER)
+          </div>
+          <label class="setting-checkbox-label">
+            <input id="encounterEnabledCheck" type="checkbox">
+            <span>Bật tự động nhận diện & highlight từ đã lưu khi lướt web</span>
+          </label>
+
+          <div class="setting-row">
+            <label class="modal-label" for="encounterModeSelect">Chế độ kiểm tra:</label>
+            <select id="encounterModeSelect" class="modal-input modal-select">
+              <option value="normal">Bình thường (Chỉ highlight, click vào từ để thử nhớ nghĩa)</option>
+              <option value="challenge">Thử thách (Gợi ý nhắc nhở ôn tập khi lướt qua từ)</option>
+              <option value="focus">Tập trung (Giới hạn số từ highlight mỗi trang)</option>
+            </select>
+          </div>
+
+          <div class="setting-row">
+            <label class="modal-label" for="maxPerPageInput">Số từ tối đa mỗi trang (Chế độ tập trung):</label>
+            <input id="maxPerPageInput" type="number" min="1" max="100" class="modal-input" value="15">
+          </div>
+
+          <div class="setting-row">
+            <label class="modal-label" for="highlightStyleSelect">Kiểu highlight trên trang web:</label>
+            <select id="highlightStyleSelect" class="modal-input modal-select">
+              <option value="subtle">Gạch chân nét đứt xanh nhẹ (Tinh tế, êm mắt)</option>
+              <option value="highlight">Nền vàng pastel nhẹ (Nổi bật, dễ nhận biết)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="settings-divider"></div>
+
+        <!-- Mục 2: Gemini AI Key -->
+        <div class="settings-section">
+          <div class="settings-sec-title">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+            TẠO CÂU VÍ DỤ NÂNG CAO (AI)
+          </div>
+          <div class="settings-desc">
+            Tiện ích tích hợp sẵn kho ví dụ ngữ cảnh chuẩn & Tatoeba miễn phí.
+          </div>
+          <label class="modal-label" for="geminiKeyInput">Google Gemini API Key (Tùy chọn):</label>
+          <input id="geminiKeyInput" type="password" class="modal-input" placeholder="Dán Gemini API Key nếu muốn AI tạo ví dụ phong phú hơn...">
+          <div class="field-hint">
+            Lấy Gemini API Key miễn phí tại <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer">Google AI Studio</a>. Nếu để trống, tiện ích sẽ dùng bộ máy song ngữ miễn phí mặc định.
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="cancelSettingsModal" class="btn">Đóng</button>
+        <button id="saveSettingsModal" class="btn primary">Lưu cài đặt</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="manage.js"></script>
+</body>
+</html>

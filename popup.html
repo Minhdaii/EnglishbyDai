@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>englishmdai</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <!-- KHUNG NGOÀI CÙNG BO TRÒN MỀM MẠI -->
+  <div class="popup-frame">
+    <div class="top-line"></div>
+
+    <header class="app-header">
+      <div class="brand">
+        <img src="icons/icon48.png" alt="Logo" class="brand-logo">
+        <span class="brand-title">englishmdai</span>
+      </div>
+      <button id="openNotebook" class="link-btn" title="Mở sổ từ vựng">
+        Sổ từ vựng
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+      </button>
+    </header>
+
+    <!-- Thanh nhập & dán từ bo tròn mềm mại -->
+    <form id="inputForm" class="quick-input-bar">
+      <div class="input-wrap">
+        <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        <input id="wordInput" type="text" placeholder="Tra từ tiếng Anh..." autofocus autocomplete="off" spellcheck="false">
+        <button id="btnPaste" type="button" class="btn-paste" title="Dán từ từ clipboard">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
+          Dán
+        </button>
+      </div>
+      <button type="submit" class="btn-primary" id="btnSearch">Tra & Lưu</button>
+    </form>
+
+    <main class="content-box">
+      <!-- VIEW 1: GIAO DIỆN TRA CỨU / TÌM TỪ (Mặc định khi mở lại extension) -->
+      <div id="searchView" class="search-view">
+        <div class="search-hero">
+          <div class="search-hero-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          </div>
+          <div class="search-hero-title">Tra cứu & Tìm từ vựng</div>
+          <div class="search-hero-desc">Nhập từ ở trên hoặc dán để xem nghĩa và câu ví dụ minh họa.</div>
+          <button id="btnHeroPaste" type="button" class="btn-pill-action">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
+            Dán từ vừa copy
+          </button>
+        </div>
+
+        <!-- Danh sách từ đã lưu gần đây dạng thẻ mềm -->
+        <div id="recentWrap" class="recent-wrap" hidden>
+          <div class="recent-title">Từ đã lưu gần đây:</div>
+          <div id="recentChips" class="recent-chips"></div>
+        </div>
+      </div>
+
+      <!-- VIEW 2: CHI TIẾT TỪ VỰNG & CÂU VÍ DỤ -->
+      <div id="wordView" class="word-view" hidden>
+        <div class="word-header">
+          <div class="word-title" id="w"></div>
+          <div class="word-tools" id="wordTools">
+            <button id="speakWord" class="btn-circle" title="Phát âm từ này">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>
+            </button>
+            <button id="copyWord" class="btn-circle" title="Sao chép từ">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="meta-row">
+          <span class="ipa" id="p"></span>
+          <span class="pos" id="pos" hidden></span>
+          <span class="status-pill" id="statusPill" hidden></span>
+        </div>
+
+        <div class="meaning-box" id="m"></div>
+
+        <!-- CÂU VÍ DỤ MINH HỌA BO TRÒN MỀM MẠI -->
+        <section class="example-card" id="exampleCard" hidden>
+          <div class="example-header">
+            <span class="example-badge">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+              CÂU VÍ DỤ
+            </span>
+            <div class="example-btns">
+              <button id="speakExample" class="btn-pill-mini" title="Nghe phát âm cả câu ví dụ">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+                Nghe
+              </button>
+              <button id="cycleExample" class="btn-pill-mini" title="Đổi câu ví dụ khác">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                Đổi
+              </button>
+            </div>
+          </div>
+          <div class="example-en" id="exampleEn"></div>
+          <div class="example-vi" id="exampleVi"></div>
+        </section>
+
+        <div class="alts-box" id="a"></div>
+
+        <div class="back-wrap">
+          <button id="btnBackToSearch" class="btn-back">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+            Tra từ khác
+          </button>
+        </div>
+      </div>
+    </main>
+
+    <footer class="app-footer">
+      <span class="footer-tip">Bôi đen chữ trên web + Alt+S để lưu</span>
+      <button id="openFull" class="footer-link">Mở sổ từ vựng →</button>
+    </footer>
+
+    <div class="bar" id="bar"></div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
