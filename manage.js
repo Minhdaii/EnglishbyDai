@@ -327,7 +327,13 @@ function renderList() {
             (w.incorrectCount || 0) > 0 && el("span", { class: "enc-pill enc-wrong" }, `✕ Sai: ${w.incorrectCount}`),
             w.nextReview && el("span", { class: "enc-pill enc-review" }, `Ôn: ${formatNextReview(w.nextReview)}`)
           ),
-        w.definition && el("div", { class: "def" }, w.definition),
+        (w.definitionVi || w.definition) &&
+          el(
+            "div",
+            { class: "def" },
+            w.defSource && el("b", { style: "color:#2563eb;margin-right:4px" }, `[${w.defSource}]`),
+            w.definitionVi || w.definition
+          ),
         w.context && w.context !== w.example && el("div", { class: "ctx" }, highlightKeyword(w.context, w.word)),
         el(
           "div",
@@ -554,12 +560,14 @@ $("#saveEditModal").onclick = saveEditedExample;
 
 // ===== Modal Cài đặt AI, Giọng đọc Google & Word Encounter =====
 $("#btnSettings").onclick = async () => {
-  const { geminiApiKey = "", encounterSettings = {}, ttsSettings: savedTts = {} } = await chrome.storage.local.get([
+  const { geminiApiKey = "", useGeminiAi, encounterSettings = {}, ttsSettings: savedTts = {} } = await chrome.storage.local.get([
     "geminiApiKey",
+    "useGeminiAi",
     "encounterSettings",
     "ttsSettings"
   ]);
   $("#geminiKeyInput").value = geminiApiKey;
+  $("#useGeminiCheck").checked = useGeminiAi !== false;
   $("#encounterEnabledCheck").checked = encounterSettings.enabled !== false;
   $("#encounterModeSelect").value = encounterSettings.mode || "normal";
   $("#maxPerPageInput").value = encounterSettings.maxPerPage || 15;
@@ -572,6 +580,7 @@ $("#closeSettingsModal").onclick = () => { $("#settingsModal").hidden = true; };
 $("#cancelSettingsModal").onclick = () => { $("#settingsModal").hidden = true; };
 $("#saveSettingsModal").onclick = async () => {
   const key = $("#geminiKeyInput").value.trim();
+  const useGeminiAi = $("#useGeminiCheck").checked;
   const maxPerPage = Math.max(1, Math.min(100, parseInt($("#maxPerPageInput").value, 10) || 15));
   const encounterSettings = {
     enabled: $("#encounterEnabledCheck").checked,
@@ -584,7 +593,7 @@ $("#saveSettingsModal").onclick = async () => {
     rate: parseFloat($("#ttsRateSelect").value) || 0.85
   };
   ttsSettings = newTtsSettings;
-  await chrome.storage.local.set({ geminiApiKey: key, encounterSettings, ttsSettings: newTtsSettings });
+  await chrome.storage.local.set({ geminiApiKey: key, useGeminiAi, encounterSettings, ttsSettings: newTtsSettings });
   $("#settingsModal").hidden = true;
   alert("Đã lưu cài đặt thành công!");
 };

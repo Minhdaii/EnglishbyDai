@@ -205,11 +205,29 @@ function renderWord(w) {
   $("#pos").textContent = ABBR[w.pos] || w.pos || "";
   wordTools.hidden = false;
 
+  const defBox = $("#defBox");
+  if (defBox) {
+    defBox.hidden = true;
+    defBox.replaceChildren();
+  }
+
   if (w.status === "done" && w.meaning) {
     statusPill.hidden = false;
     statusPill.textContent = "✓ Đã lưu";
     $("#m").textContent = w.meaning;
     $("#m").className = "meaning-box";
+
+    // Hiển thị giải nghĩa từ điển mở / AI (Wiktionary, WordNet, Urban, Gemini)
+    const defText = w.definitionVi || w.definition || "";
+    if (defBox && defText && defText.toLowerCase() !== w.meaning.toLowerCase()) {
+      defBox.hidden = false;
+      if (w.defSource) {
+        const b = document.createElement("b");
+        b.textContent = `[${w.defSource}]`;
+        defBox.append(b);
+      }
+      defBox.append(document.createTextNode(defText));
+    }
 
     // Hiển thị câu ví dụ
     if (w.example) {

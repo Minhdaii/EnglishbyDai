@@ -140,12 +140,12 @@ async function translateWord(text) {
   return { meaning, alts, rawExamples };
 }
 
-// ===== Gọi từ điển DictionaryAPI =====
+// ===== Gọi từ điển Free Dictionary API (hỗ trợ cả từ đơn & từ ghép 1-4 từ) =====
 async function dictionary(word) {
-  if (/\s/.test(word)) return {};
+  if (!word || word.length > 48 || word.split(/\s+/).length > 4) return {};
   try {
     const r = await fetch("https://api.dictionaryapi.dev/api/v2/entries/en/" + encodeURIComponent(word), {
-      signal: AbortSignal.timeout(3500),
+      signal: AbortSignal.timeout(4000),
     });
     if (!r.ok) return {};
     const d = await r.json();
@@ -177,62 +177,255 @@ async function dictionary(word) {
   }
 }
 
+function stripHtmlTags(html) {
+  return (html || "")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isValidExampleSentence(s, key = "") {
+  if (!s) return false;
+  const t = s.trim();
+  if (t.length < 14 || t.length > 140) return false;
+  // Loại bỏ các chuỗi công thức rác như "Party animal = One who loves parties." hoặc "A -> B"
+  if (/[=→⇒]|::|->|\bdef:/i.test(t)) return false;
+  if (key && t.toLowerCase().replace(/[^a-z\s]/g, "").trim() === key.toLowerCase()) return false;
+  return true;
+}
+
+function summarizeDefinitionVi(defVi) {
+  if (!defVi) return "";
+  let s = defVi.trim();
+  // Rút gọn nhẹ nhàng lấy mệnh đề chính đầu tiên nếu câu giải thích dài
+  const firstClause = s.split(/[.;]/)[0].split(/,\s*(?:đặc biệt|nhất là|thường là|chẳng hạn|ví dụ)/i)[0].trim();
+  if (firstClause.length >= 12 && firstClause.length <= 95) return firstClause;
+  if (s.length > 95) return s.slice(0, 92).trim() + "…";
+  return s;
+}
+
+// ===== Gọi Wikimedia Wiktionary REST API (CC-BY-SA — cực mạnh cho từ ghép, cụm động từ & thành ngữ) =====
+async function fetchWiktionary(term) {
+  if (!term || term.length > 48 || term.split(/\s+/).length > 4) return {};
+  try {
+    const r = await fetch("https://en.wiktionary.org/api/rest_v1/page/definition/" + encodeURIComponent(term), {
+      signal: AbortSignal.timeout(4000),
+    });
+    if (!r.ok) return {};
+    const d = await r.json();
+    const sections = d.en || [];
+    let bestPos = "";
+    let bestDef = "";
+    const examples = [];
+
+    for (const sec of sections) {
+      const pos = (sec.partOfSpeech || "").toLowerCase();
+      for (const item of sec.definitions || []) {
+        const cleanDef = stripHtmlTags(item.definition || "");
+        if (
+          cleanDef.length >= 10 &&
+          cleanDef.length <= 220 &&
+          !/^(used other than figuratively|alternative form of|nonstandard form of)/i.test(cleanDef) &&
+          !bestDef
+        ) {
+          bestDef = cleanDef;
+          bestPos = pos;
+        }
+        const rawExList = [
+          ...(Array.isArray(item.examples) ? item.examples : []),
+          ...(Array.isArray(item.parsedExamples) ? item.parsedExamples.map((pe) => pe?.example) : []),
+        ];
+        for (const ex of rawExList) {
+          const cleanEx = stripHtmlTags(ex || "");
+          if (isValidExampleSentence(cleanEx, term) && !examples.includes(cleanEx)) {
+            examples.push(cleanEx);
+            if (examples.length >= 3) break;
+          }
+        }
+      }
+    }
+    return { pos: bestPos, definition: bestDef, example: examples[0] || "", examples };
+  } catch (e) {
+    return {};
+  }
+}
+
+// ===== Gọi Datamuse / Princeton WordNet API (định nghĩa học thuật mở) =====
+async function fetchDatamuse(term) {
+  if (!term || term.length > 48 || term.split(/\s+/).length > 4) return {};
+  try {
+    const r = await fetch("https://api.datamuse.com/words?sp=" + encodeURIComponent(term) + "&md=d&max=3", {
+      signal: AbortSignal.timeout(3500),
+    });
+    if (!r.ok) return {};
+    const list = await r.json();
+    if (!Array.isArray(list)) return {};
+    const posMap = { n: "noun", v: "verb", adj: "adjective", adv: "adverb" };
+    for (const item of list) {
+      if ((item.word || "").toLowerCase() !== term.toLowerCase()) continue;
+      for (const raw of item.defs || []) {
+        const parts = raw.split("\t");
+        const pos = posMap[parts[0]] || parts[0] || "";
+        const def = (parts[1] || parts[0] || "").trim();
+        if (def.length >= 8 && def.length <= 220) {
+          return { pos, definition: def };
+        }
+      }
+    }
+    return {};
+  } catch (e) {
+    return {};
+  }
+}
+
+// ===== Gọi Urban Dictionary Public API (dự phòng cho tiếng lóng / thuật ngữ game & mạng xã hội) =====
+async function fetchUrbanDictionary(term) {
+  if (!term || term.length > 48 || term.split(/\s+/).length > 4) return {};
+  try {
+    const r = await fetch("https://api.urbandictionary.com/v0/define?term=" + encodeURIComponent(term), {
+      signal: AbortSignal.timeout(3500),
+    });
+    if (!r.ok) return {};
+    const d = await r.json();
+    for (const item of d.list || []) {
+      let def = (item.definition || "").replace(/[\[\]]/g, "").replace(/\s+/g, " ").trim();
+      let ex = (item.example || "").replace(/[\[\]]/g, "").replace(/\s+/g, " ").trim();
+      if (def.length > 240) def = def.slice(0, 237).trim() + "...";
+      if (ex.length > 150) ex = ex.slice(0, 147).trim() + "...";
+      if (def.length >= 8) return { definition: def, example: ex };
+    }
+    return {};
+  } catch (e) {
+    return {};
+  }
+}
+
 // ===== Tìm câu ví dụ từ Tatoeba (EN -> VI song ngữ) =====
 async function fetchTatoebaExample(word) {
   try {
+    const query = /\s/.test(word) ? `"${word}"` : word;
     const url =
       "https://tatoeba.org/en/api_v0/search?from=eng&to=vie&query=" +
-      encodeURIComponent(word) +
+      encodeURIComponent(query) +
       "&trans_filter=limit&trans_link=direct&sort=relevance";
     const r = await fetch(url, { signal: AbortSignal.timeout(3500) });
     if (!r.ok) return null;
     const d = await r.json();
     const hits = (d.results || []).filter(
-      (x) => x.text && x.translations?.[0]?.[0]?.text && x.text.length >= 12 && x.text.length <= 130
+      (x) => isValidExampleSentence(x.text, word) && x.translations?.[0]?.[0]?.text && !/[=→⇒]/.test(x.translations[0][0].text)
     );
     if (hits.length > 0) {
-      // Ưu tiên câu có chứa từ cần tìm
       const regex = new RegExp("\\b" + word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b", "i");
-      const matched = hits.find((h) => regex.test(h.text)) || hits[0];
-      return {
-        en: matched.text,
-        vi: matched.translations[0][0].text,
-        source: "tatoeba",
-      };
-    }
-  } catch (e) {}
-  return null;
-}
-
-// ===== Sinh ví dụ qua Gemini AI nếu người dùng cấu hình API Key =====
-async function fetchGeminiExample(word, apiKey) {
-  if (!apiKey) return null;
-  try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-    const prompt = `Give one simple, natural, conversational English example sentence for the word "${word}" suitable for English learners (like "What is your name?" for "name"), and its Vietnamese translation. Return JSON only with format: {"en": "...", "vi": "..."}`;
-    const r = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: "application/json", temperature: 0.3 },
-      }),
-      signal: AbortSignal.timeout(5000),
-    });
-    if (!r.ok) return null;
-    const res = await r.json();
-    const txt = res.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (txt) {
-      const parsed = JSON.parse(txt);
-      if (parsed.en && parsed.vi) {
-        return { en: parsed.en.trim(), vi: parsed.vi.trim(), source: "gemini" };
+      const matched = hits.find((h) => regex.test(h.text)) || (!/\s/.test(word) ? hits[0] : null);
+      if (matched) {
+        return {
+          en: matched.text,
+          vi: matched.translations[0][0].text,
+          source: "tatoeba",
+        };
       }
     }
   } catch (e) {}
   return null;
 }
 
-// ===== Pipeline chọn câu ví dụ tối ưu nhất cho từ vựng =====
+const GEMINI_MODELS = ["gemini-3.1-flash-lite", "gemini-3.5-flash-lite", "gemini-3.8-flash"];
+
+function extractInteractionText(resJson) {
+  let out = "";
+  for (const step of resJson?.steps || []) {
+    if (step?.type === "model_output" && Array.isArray(step.content)) {
+      for (const p of step.content) {
+        if (p?.type === "text" && p.text) out += p.text;
+      }
+    }
+  }
+  if (!out && Array.isArray(resJson?.outputs)) {
+    for (const o of resJson.outputs) {
+      if (o?.type === "text" && o.text) out += o.text;
+    }
+  }
+  return out.trim();
+}
+
+// ===== Dịch & giải nghĩa thông minh qua Gemini Interactions API (chỉ chạy khi bật + có Key) =====
+async function fetchGeminiFullLookup(term, apiKey) {
+  if (!apiKey) return null;
+  const isLexical = term.length <= 48 && term.split(/\s+/).length <= 4;
+  const sysPrompt = isLexical
+    ? "Bạn là từ điển Anh-Việt chuẩn xác cho người Việt. Dịch chính xác từ đơn, từ ghép, cụm động từ, tiếng lóng và thành ngữ theo nghĩa tự nhiên thực tế (không dịch sát chữ máy móc). Trả về duy nhất JSON hợp lệ."
+    : "Bạn là biên dịch viên Anh-Việt chuyên nghiệp. Dịch câu/đoạn tiếng Anh sang tiếng Việt tự nhiên, đúng ngữ cảnh. Trả về duy nhất JSON hợp lệ.";
+
+  const responseFormat = {
+    type: "text",
+    mime_type: "application/json",
+    schema: {
+      type: "object",
+      properties: {
+        meaning: { type: "string" },
+        pos: { type: "string" },
+        alts: { type: "array", items: { type: "string" } },
+        definitionVi: { type: "string" },
+        exampleEn: { type: "string" },
+        exampleVi: { type: "string" },
+      },
+      required: ["meaning"],
+    },
+  };
+
+  for (const model of GEMINI_MODELS) {
+    try {
+      const r = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey,
+        },
+        body: JSON.stringify({
+          model,
+          store: false,
+          system_instruction: sysPrompt,
+          input: isLexical
+            ? `Tra và dịch sang tiếng Việt cụm/từ tiếng Anh sau: "${term}". Nêu nghĩa chuẩn, 1 câu giải thích ngắn nếu là từ ghép/thành ngữ/lóng, và 1 câu ví dụ tự nhiên kèm bản dịch.`
+            : `Dịch tự nhiên sang tiếng Việt: "${term}"`,
+          response_format: responseFormat,
+          generation_config: { thinking_level: "minimal", max_output_tokens: 480 },
+        }),
+        signal: AbortSignal.timeout(12000),
+      });
+      if (!r.ok) continue;
+      const resJson = await r.json();
+      let txt = extractInteractionText(resJson);
+      if (!txt) continue;
+      if (txt.startsWith("```")) {
+        const s = txt.indexOf("{");
+        const e = txt.lastIndexOf("}");
+        if (s >= 0 && e > s) txt = txt.slice(s, e + 1);
+      }
+      const parsed = JSON.parse(txt);
+      if (parsed?.meaning) {
+        return {
+          meaning: parsed.meaning.trim(),
+          pos: (parsed.pos || "").trim(),
+          alts: Array.isArray(parsed.alts) && parsed.alts.length
+            ? [{ pos: (parsed.pos || "nghĩa khác").trim(), terms: parsed.alts.slice(0, 4) }]
+            : [],
+          definitionVi: (parsed.definitionVi || "").trim(),
+          example: (parsed.exampleEn || "").trim(),
+          exampleTrans: (parsed.exampleVi || "").trim(),
+          defSource: `Gemini AI (${model})`,
+        };
+      }
+    } catch (e) {}
+  }
+  return null;
+}
+
+// ===== Pipeline chọn câu ví dụ tối ưu nhất cho từ vựng (không qua AI) =====
 async function findBestExample(word, options = {}) {
   const key = word.trim().toLowerCase();
   const alts = [];
@@ -246,20 +439,7 @@ async function findBestExample(word, options = {}) {
     };
   }
 
-  // 2. Kiểm tra Gemini AI nếu có key
-  const { geminiApiKey } = await chrome.storage.local.get("geminiApiKey");
-  if (geminiApiKey) {
-    const geminiRes = await fetchGeminiExample(key, geminiApiKey);
-    if (geminiRes) {
-      return {
-        example: geminiRes.en,
-        exampleTrans: geminiRes.vi,
-        exampleAlts: [geminiRes.en],
-      };
-    }
-  }
-
-  // 3. Kiểm tra Tatoeba (song ngữ người dịch EN-VI chất lượng cao)
+  // 2. Kiểm tra Tatoeba (song ngữ người dịch EN-VI chất lượng cao)
   const tatoebaRes = await fetchTatoebaExample(key);
   if (tatoebaRes) {
     alts.push(tatoebaRes.en);
@@ -270,67 +450,95 @@ async function findBestExample(word, options = {}) {
     };
   }
 
-  // 4. Kiểm tra ví dụ từ Google Translate hoặc DictionaryAPI
+  // 3. Kiểm tra ví dụ từ Wiktionary / DictionaryAPI / Urban / Google Translate (lọc bỏ tuyệt đối câu công thức rác chứa '=')
   const candidates = [
-    ...(options.rawExamples || []),
+    ...(options.wikiExamples || []),
     ...(options.dictExamples || []),
-  ].filter(Boolean);
+    ...(options.urbanExamples || []),
+    ...(options.rawExamples || []),
+  ].filter((c) => isValidExampleSentence(c, key));
 
   if (candidates.length > 0) {
-    // Chọn câu tự nhiên, độ dài vừa phải
     const regex = new RegExp("\\b" + key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b", "i");
     const matched = candidates.filter((c) => regex.test(c));
-    const pool = matched.length > 0 ? matched : candidates;
-    const chosen = pool.find((s) => s.length >= 15 && s.length <= 90) || pool[0];
-
-    const trans = await translateText(chosen);
-    return {
-      example: chosen,
-      exampleTrans: trans || "Ví dụ minh họa cho từ này.",
-      exampleAlts: pool.slice(0, 4),
-    };
+    const pool = matched.length > 0 ? matched : (!/\s/.test(key) ? candidates : []);
+    if (pool.length > 0) {
+      const chosen = pool.find((s) => s.length >= 16 && s.length <= 105) || pool[0];
+      const trans = await translateText(chosen);
+      return {
+        example: chosen,
+        exampleTrans: trans || "",
+        exampleAlts: pool.slice(0, 4),
+      };
+    }
   }
 
-  // 5. Nếu từ có context từ trang web người dùng vừa bôi đen
-  if (options.context && options.context.length >= 15 && options.context.length <= 150) {
+  // 4. Nếu từ có context hợp lệ từ trang web người dùng vừa bôi đen
+  if (isValidExampleSentence(options.context, key)) {
     const trans = await translateText(options.context);
     return {
       example: options.context,
-      exampleTrans: trans || "Ví dụ từ trang web đã lưu.",
+      exampleTrans: trans || "",
       exampleAlts: [options.context],
     };
   }
 
-  // 6. Mẫu câu giao tiếp tự nhiên dự phòng (Fallback)
-  let enFallback = `Can you explain the meaning of "${word}"?`;
-  let viFallback = `Bạn có thể giải thích ý nghĩa của từ "${word}" không?`;
-
-  if (options.pos === "noun") {
-    enFallback = `Do you have the ${word}?`;
-    viFallback = `Bạn có ${options.meaning || word} không?`;
-  } else if (options.pos === "verb") {
-    enFallback = `I want to ${word} every day.`;
-    viFallback = `Tôi muốn ${options.meaning || word} mỗi ngày.`;
-  } else if (options.pos === "adjective") {
-    enFallback = `It looks very ${word}.`;
-    viFallback = `Nó trông rất ${options.meaning || word}.`;
-  }
-
   return {
-    example: enFallback,
-    exampleTrans: viFallback,
-    exampleAlts: [enFallback],
+    example: "",
+    exampleTrans: "",
+    exampleAlts: [],
   };
 }
 
-// ===== Bổ sung dữ liệu đầy đủ cho từ (Nghĩa, IPA, POS, Ví dụ, Dịch ví dụ) =====
+// ===== Bổ sung dữ liệu đầy đủ cho từ (Gemini AI nếu bật, hoặc toàn bộ nguồn công khai mở) =====
 async function enrich(key, existingContext = "") {
   try {
-    const [t, d] = await Promise.allSettled([translateWord(key), dictionary(key)]);
-    const patch = {};
+    const cleanKey = key.replace(/\s*-\s*/g, "-").trim();
+    const isLexical = cleanKey.length <= 48 && cleanKey.split(/\s+/).length <= 4;
+    const isSingleWord = isLexical && !/\s/.test(cleanKey);
 
+    const { geminiApiKey = "", useGeminiAi } = await chrome.storage.local.get(["geminiApiKey", "useGeminiAi"]);
+    const shouldUseAi = useGeminiAi !== false && !!geminiApiKey.trim();
+
+    if (shouldUseAi) {
+      const [gemRes, dictIpa] = await Promise.allSettled([
+        fetchGeminiFullLookup(cleanKey, geminiApiKey.trim()),
+        isLexical ? dictionary(cleanKey) : Promise.resolve({}),
+      ]);
+      if (gemRes.status === "fulfilled" && gemRes.value?.meaning) {
+        const g = gemRes.value;
+        const d = dictIpa.status === "fulfilled" ? dictIpa.value : {};
+        await patchWord(key, {
+          meaning: g.meaning,
+          pos: g.pos || d.pos || "",
+          phonetic: d.phonetic || "",
+          audio: d.audio || "",
+          alts: g.alts,
+          definition: g.definitionVi || "",
+          definitionVi: g.definitionVi || "",
+          defSource: g.defSource,
+          example: g.example || "",
+          exampleTrans: g.exampleTrans || "",
+          exampleAlts: g.example ? [g.example] : [],
+          status: "done",
+        });
+        return;
+      }
+    }
+
+    // Chạy song song toàn bộ nguồn công khai mở: Google Translate + FreeDict + Wiktionary + WordNet(Datamuse)
+    const [t, d, w, dm] = await Promise.allSettled([
+      translateWord(cleanKey),
+      isLexical ? dictionary(cleanKey) : Promise.resolve({}),
+      isLexical ? fetchWiktionary(cleanKey) : Promise.resolve({}),
+      isLexical ? fetchDatamuse(cleanKey) : Promise.resolve({}),
+    ]);
+
+    const patch = {};
     let rawExamples = [];
     let dictExamples = [];
+    let wikiExamples = [];
+    let urbanExamples = [];
     let meaning = "";
     let pos = "";
 
@@ -342,18 +550,66 @@ async function enrich(key, existingContext = "") {
       patch.status = "error";
     }
 
-    if (d.status === "fulfilled") {
-      pos = d.value.pos || "";
-      dictExamples = d.value.dictExamples || [];
-      Object.assign(patch, d.value);
+    const dVal = d.status === "fulfilled" ? d.value : {};
+    const wVal = w.status === "fulfilled" ? w.value : {};
+    const dmVal = dm.status === "fulfilled" ? dm.value : {};
+
+    if (dVal.phonetic) patch.phonetic = dVal.phonetic;
+    if (dVal.audio) patch.audio = dVal.audio;
+    pos = dVal.pos || wVal.pos || dmVal.pos || "";
+    if (pos) patch.pos = pos;
+    dictExamples = dVal.dictExamples || [];
+    if (Array.isArray(wVal.examples) && wVal.examples.length) wikiExamples.push(...wVal.examples);
+    else if (wVal.example) wikiExamples.push(wVal.example);
+
+    // Chọn định nghĩa chuẩn: Wiktionary (mạnh từ ghép/thành ngữ) -> FreeDict -> WordNet -> Urban Dictionary (lóng)
+    let bestDefEn = "";
+    let defSource = "";
+    if (!isSingleWord && wVal.definition) {
+      bestDefEn = wVal.definition;
+      defSource = "Wiktionary";
+    } else if (dVal.definition) {
+      bestDefEn = dVal.definition;
+      defSource = "Free Dictionary";
+    } else if (wVal.definition) {
+      bestDefEn = wVal.definition;
+      defSource = "Wiktionary";
+    } else if (dmVal.definition) {
+      bestDefEn = dmVal.definition;
+      defSource = "WordNet";
+    } else if (isLexical) {
+      const urban = await fetchUrbanDictionary(cleanKey);
+      if (urban.definition) {
+        bestDefEn = urban.definition;
+        defSource = "Urban Dictionary";
+        if (urban.example) urbanExamples.push(urban.example);
+      }
     }
 
-    // Tìm câu ví dụ và bản dịch câu ví dụ
-    const exResult = await findBestExample(key, {
+    if (bestDefEn) {
+      patch.definition = bestDefEn;
+      patch.defSource = defSource;
+      const defVi = await translateText(bestDefEn);
+      if (defVi) {
+        patch.definitionVi = defVi;
+        // Nếu là từ ghép/thành ngữ mà Google Translate không có mục từ điển (alts rỗng -> dịch sát chữ sai như "động vật bên", "chân lạnh")
+        // thì thay nghĩa chính bằng bản tóm tắt chuẩn từ từ điển mở!
+        if (!isSingleWord && (!patch.alts || patch.alts.length === 0)) {
+          patch.meaning = summarizeDefinitionVi(defVi);
+          meaning = patch.meaning;
+          patch.status = "done";
+        }
+      }
+    }
+
+    // Tìm câu ví dụ song ngữ (Tatoeba -> Dict -> Wiktionary -> Urban -> Google -> Context)
+    const exResult = await findBestExample(cleanKey, {
       meaning,
       pos,
       rawExamples,
       dictExamples,
+      wikiExamples,
+      urbanExamples,
       context: existingContext,
     });
 

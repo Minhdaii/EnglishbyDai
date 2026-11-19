@@ -218,15 +218,19 @@
         <div class="settings-section">
           <div class="settings-sec-title">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
-            TẠO CÂU VÍ DỤ NÂNG CAO (AI)
+            DỊCH TỪ GHÉP &amp; THÀNH NGỮ BẰNG GEMINI AI (TÙY CHỌN)
           </div>
+          <label class="setting-checkbox-label">
+            <input id="useGeminiCheck" type="checkbox">
+            <span>Bật dùng Gemini AI (tắt đi để chỉ dùng nguồn công khai miễn phí mà vẫn giữ nguyên Key)</span>
+          </label>
           <div class="settings-desc">
-            Tiện ích tích hợp sẵn kho ví dụ ngữ cảnh chuẩn & Tatoeba miễn phí.
+            Khi tắt hoặc để trống Key, tiện ích tự tổng hợp từ các nguồn mở miễn phí: Google Translate, Free Dictionary, Wiktionary, WordNet (Datamuse), Tatoeba &amp; Urban Dictionary.
           </div>
           <label class="modal-label" for="geminiKeyInput">Google Gemini API Key (Tùy chọn):</label>
-          <input id="geminiKeyInput" type="password" class="modal-input" placeholder="Dán Gemini API Key nếu muốn AI tạo ví dụ phong phú hơn...">
+          <input id="geminiKeyInput" type="password" class="modal-input" placeholder="Dán Gemini API Key (AIza...) tại đây...">
           <div class="field-hint">
-            Lấy Gemini API Key miễn phí tại <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer">Google AI Studio</a>. Nếu để trống, tiện ích sẽ dùng bộ máy song ngữ miễn phí mặc định.
+            Lấy Gemini API Key miễn phí tại <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">Google AI Studio</a>.
           </div>
         </div>
       </div>
